@@ -1,0 +1,48 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+crash.log
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+# local artifacts
+lambda/build/
+evidence/*.secret
+local-results/
+localstack/.env
+*.secret
+*.log
+__pycache__/
+
+# LocalStack configuration and secrets
+localstack/localstack.env
+docker-compose.yml.bak
+
+# Lambda generated files
+lambda/package/
+lambda/__pycache__/
+lambda/handler.py.bak
+
+# Terraform local artifacts
+**/.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+
+# Terraform backups
+*.tf.bak
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Original starter archive
+sre-data-processor-starter.zip
+
+# Terraform plan files
+tfplan

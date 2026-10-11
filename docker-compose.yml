@@ -1,0 +1,37 @@
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: sre-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,iam,lambda,apigateway,logs,ec2,sts,elasticache
+      LAMBDA_DOCKER_NETWORK: sre-data-processor_default
+      AWS_DEFAULT_REGION: us-east-1
+      PERSISTENCE: "1"
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?Configura el token en PowerShell}
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /run/host-services/docker.proxy.sock:/var/run/docker.sock
+    networks:
+      - default
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    external: true
+    name: sre-data-processor_redis_data
+  localstack_data:
+    external: true
+    name: localstack_data
