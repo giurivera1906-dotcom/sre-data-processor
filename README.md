@@ -1,8 +1,8 @@
 # SRE Data Processor — AWS + Terraform
 
-Infraestructura de ejemplo para una API HTTP que procesa solicitudes, usa Redis como caché y persiste resultados en S3.
+Infraestructura de ejemplo para una API HTTP que procesa solicitudes, utiliza Redis como caché y almacena resultados en Amazon S3.
 
-> Estado: código inicial para revisión y pruebas. No afirmar despliegue exitoso hasta ejecutar `terraform apply` en una cuenta AWS o un entorno compatible. LocalStack no garantiza paridad completa con AWS para VPC/NAT/ElastiCache.
+> **Estado del proyecto:** configuración validada con Terraform y pruebas funcionales realizadas en entornos locales y LocalStack. No se ha realizado un despliegue real en AWS. LocalStack no garantiza compatibilidad completa con todos los servicios y recursos de AWS.
 
 ## Arquitectura
 
@@ -16,53 +16,161 @@ flowchart TD
   V[VPC] --- L
   V --- R
   L -->|S3 Gateway Endpoint| S
-  N[NAT Gateway] -. salida opcional de Lambda .-> L
+  N[NAT Gateway] -. salida opcional .-> L
 ```
+
+## Componentes
+
+- **API Gateway:** expone el endpoint HTTP de procesamiento.
+- **AWS Lambda:** procesa las solicitudes y genera los resultados.
+- **Redis / ElastiCache:** almacena resultados en caché con expiración TTL.
+- **Amazon S3:** almacena los resultados procesados como objetos JSON.
+- **IAM:** define los permisos necesarios para la ejecución de Lambda.
+- **VPC y subnets privadas:** separan los componentes de la infraestructura.
+- **CloudWatch Logs:** permite consultar los registros de ejecución.
 
 ## Requisitos
 
-- Terraform >= 1.5
-- AWS CLI v2
-- Python 3.11/3.12 recomendado para empaquetado Lambda (runtime definido en Terraform)
-- Cuenta AWS con permisos para VPC, EC2, Lambda, IAM, API Gateway, S3, ElastiCache y CloudWatch
-- Para pruebas locales opcionales: Docker Desktop + LocalStack; revisar limitaciones de compatibilidad.
+Para trabajar con la configuración del proyecto:
 
-## Despliegue real en AWS
+- Terraform >= 1.5.
+- AWS CLI v2.
+- Python compatible con el runtime definido en Terraform.
+- PowerShell en Windows.
+- Docker Desktop para las pruebas locales con Redis y LocalStack.
 
-1. Configura credenciales con `aws configure` o un perfil SSO.
-2. Entra a `terraform/`.
-3. Copia `terraform.tfvars.example` a `terraform.tfvars` y ajusta `project_name`, región y CIDR si lo necesitas.
-4. Ejecuta:
+Para un despliegue real también se requiere una cuenta AWS con permisos suficientes para crear los recursos de la arquitectura.
+
+## Estructura del repositorio
+
+```text
+.
+├── docs/
+│   └── test-results.md
+├── evidence/
+│   ├── README.md
+│   ├── cache-miss-hit.png
+│   └── invalid-json.png
+├── lambda/
+│   ├── build.ps1
+│   ├── handler.py
+│   └── requirements.txt
+├── terraform/
+│   ├── api_gateway.tf
+│   ├── cache.tf
+│   ├── iam.tf
+│   ├── lambda.tf
+│   ├── networking.tf
+│   ├── outputs.tf
+│   ├── providers.tf
+│   ├── security.tf
+│   ├── storage.tf
+│   ├── variables.tf
+│   └── versions.tf
+├── terraform-local/
+├── docker-compose.yml
+├── local_api.py
+└── README.md
+```
+
+## Pruebas realizadas
+
+### API local con Flask y Redis
+
+Se documentaron pruebas locales de procesamiento, caché, expiración de claves, JSON inválido, indisponibilidad y recuperación de Redis, y almacenamiento en archivos JSON locales.
+
+Los resultados detallados se encuentran en `docs/test-results.md`.
+
+### Lambda y servicios emulados con LocalStack
+
+Se verificaron los siguientes comportamientos en el entorno local:
+
+- Procesamiento de un evento válido con respuesta HTTP 200.
+- Primera solicitud con `X-Cache: MISS`.
+- Segunda solicitud equivalente con `X-Cache: HIT`.
+- Solicitud con JSON inválido y respuesta HTTP 400.
+- Almacenamiento y recuperación de un objeto JSON en S3 de LocalStack.
+
+Estas pruebas no demuestran por sí solas el funcionamiento de la arquitectura desplegada en AWS real.
+
+### Validación de Terraform
+
+La configuración principal pasó la validación:
+
+```powershell
+terraform -chdir=terraform validate
+```
+
+Resultado esperado:
+
+```text
+Success! The configuration is valid.
+```
+
+Esta validación comprueba la estructura y la sintaxis de la configuración, pero no confirma que todos los recursos puedan desplegarse correctamente en AWS.
+
+## Preparación del paquete Lambda
+
+Desde la raíz del proyecto, ejecuta:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\lambda\build.ps1"
+```
+
+El script prepara los archivos necesarios para empaquetar la función. Antes de un despliegue real, verifica que las dependencias sean compatibles con el runtime y el entorno de ejecución de Lambda.
+
+## Despliegue real en AWS — pendiente
+
+**No ejecutes este procedimiento hasta contar con una cuenta AWS autorizada, revisar los costes y confirmar que deseas crear recursos reales.**
+
+1. Configura las credenciales mediante un perfil AWS o AWS IAM Identity Center.
+2. Entra en la carpeta `terraform/`.
+3. Copia `terraform.tfvars.example` como `terraform.tfvars` y revisa los valores.
+4. Inicializa y valida la configuración:
+
    ```powershell
    terraform init
    terraform fmt -recursive
    terraform validate
    terraform plan
-   terraform apply
    ```
-5. Para probar:
-   ```powershell
-   $url = terraform output -raw api_url
-   $body = '{"text":"hola SRE"}'
-   curl.exe -i -X POST "$url/process" -H "Content-Type: application/json" -d $body
-   curl.exe -i -X POST "$url/process" -H "Content-Type: application/json" -d $body
-   ```
-   La primera respuesta debe incluir `X-Cache: MISS`; la segunda `X-Cache: HIT`.
-6. Comprueba objetos:
-   ```powershell
-   aws s3 ls "s3://$(terraform output -raw bucket_name)/results/" --recursive
-   ```
-7. Captura las respuestas y la salida de S3 en `evidence/`. No incluyas credenciales ni secretos en Git.
 
-## Decisiones
+5. Revisa el plan y los costes estimados antes de considerar `terraform apply`.
+6. Después de un despliegue autorizado, consulta la URL de la API y prueba el endpoint configurado.
+7. Comprueba los objetos generados en S3 y los registros en CloudWatch.
+8. Si ya no necesitas los recursos, planifica su eliminación y verifica qué recursos y datos se perderían.
 
-- **HTTP API**: menor complejidad para una integración proxy sencilla; suficiente para `POST /process`.
-- **Python**: permite un handler legible y fácil de mantener.
-- **Redis TTL 60 s**: limita la vida de las claves de caché.
-- **S3 privado**: bloqueo de acceso público, versionado y acceso de Lambda mediante IAM.
-- **Subnets privadas**: Lambda y Redis no tienen IP pública. NAT se incluye para salida general; el tráfico a S3 usa Gateway Endpoint.
-- **Costos**: NAT Gateway y ElastiCache pueden generar cargos. Ejecuta `terraform destroy` al terminar si ya no necesitas los recursos.
+No se debe ejecutar `terraform apply` sin revisar previamente el plan y los permisos.
 
-## Limitaciones y pendientes de validación
+## Decisiones de diseño
 
-Este repositorio debe pasar `terraform validate` y luego probarse en el entorno objetivo. La disponibilidad de tipos de nodo, zonas y ciertos recursos varía por región. En particular, verifica el soporte de `cache.t3.micro` en la región elegida. La Lambda usa un paquete ZIP construido por Terraform; `lambda/requirements.txt` contiene dependencias externas y debe empaquetarse para Linux compatible con Lambda. Para producción se recomienda pipeline de build reproducible, cifrado explícito, alarmas, pruebas y control de costos.
+- **HTTP API:** reduce la complejidad para exponer una operación HTTP.
+- **Python:** permite mantener un handler legible y sencillo de probar.
+- **Redis con TTL:** limita la permanencia de las entradas de caché.
+- **S3 privado:** almacena resultados sin habilitar acceso público.
+- **Subnets privadas:** evitan asignar direcciones IP públicas directamente a Lambda y Redis.
+- **IAM:** permite limitar los permisos de ejecución a las operaciones necesarias.
+
+## Seguridad y costes
+
+- No guardes credenciales, tokens ni archivos `.env` en Git.
+- No publiques estados ni planes de Terraform.
+- Revisa los permisos IAM antes de cualquier despliegue.
+- NAT Gateway, ElastiCache y otros recursos pueden generar cargos.
+- Usa LocalStack para pruebas locales, sin asumir que reproduce por completo el comportamiento de AWS.
+- Mantén las credenciales fuera del código y utiliza mecanismos seguros de configuración.
+
+## Limitaciones y trabajo pendiente
+
+- Desplegar y validar la arquitectura en una cuenta AWS real.
+- Verificar los permisos IAM y la conectividad de red.
+- Confirmar la compatibilidad de los tipos de nodo y recursos en la región seleccionada.
+- Comprobar la API Gateway, Lambda, S3 y CloudWatch en AWS.
+- Ampliar las pruebas automatizadas y documentar los resultados con evidencias verificables.
+- Revisar el empaquetado reproducible, la observabilidad y el control de costes.
+
+## Conclusión
+
+El proyecto dispone de código, configuración de infraestructura, pruebas locales y documentación inicial. La validación de Terraform fue satisfactoria y se comprobaron funcionalidades de procesamiento, caché y almacenamiento en el entorno local.
+
+El despliegue real y la validación completa de los recursos de AWS permanecen pendientes.
