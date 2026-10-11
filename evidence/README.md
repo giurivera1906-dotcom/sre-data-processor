@@ -1,47 +1,50 @@
 # Evidencias de pruebas — SRE Data Processor
 
-## Entorno de ejecución
+## 1. Entorno de ejecución
 
 - **Entorno:** LocalStack ejecutado mediante Docker Compose.
 - **Región simulada:** `us-east-1`.
 - **Función Lambda:** `sre-data-processor-local`.
 - **Bucket de pruebas:** `sre-data-processor-smoke-20261010`.
 - **Caché:** Redis 7.
-- **AWS real:** No se ha desplegado infraestructura en una cuenta AWS real.
+- **AWS real:** no se ha desplegado infraestructura en una cuenta AWS real.
 
-## Pruebas ejecutadas
+## 2. Pruebas ejecutadas
 
-### 1. Procesamiento correcto
+### 2.1. Procesamiento correcto
 
 Se invocó la función Lambda con el evento `evento-prueba.json`.
 
-Resultado observado:
+**Resultados observados:**
+
 - `statusCode`: `200`.
 - `X-Cache`: `MISS` en la primera solicitud.
 - El campo `input` contiene `event_id` y `message`.
 - Se generó una clave de objeto bajo `results/`.
 - El resultado se guardó en S3 de LocalStack.
 
-### 2. Caché Redis
+### 2.2. Caché Redis
 
 Se repitió la invocación con el mismo evento.
 
-Resultado observado:
+**Resultados observados:**
+
 - `statusCode`: `200`.
 - `X-Cache`: `HIT`.
 - Se reutilizaron el mismo `request_id` y la misma `s3_key` de la primera respuesta.
 
-### 3. JSON inválido
+### 2.3. JSON inválido
 
 Se invocó Lambda con un evento HTTP cuyo campo `body` contenía JSON inválido.
 
-Resultado observado:
+**Resultados observados:**
+
 - `statusCode`: `400`.
 - Mensaje: `Request body is not valid JSON.`
 
-### 4. Validación de Terraform
+### 2.4. Validación de Terraform
 
-Comando ejecutado:
+Comando ejecutado desde la raíz del proyecto:
 
 ```powershell
 terraform -chdir=terraform validate
@@ -53,19 +56,30 @@ Resultado observado:
 Success! The configuration is valid.
 ```
 
-Esta validación confirma la validez de la configuración de Terraform, pero no demuestra que los recursos puedan desplegarse correctamente en AWS real.
+Esta validación confirma que Terraform acepta la estructura de la configuración. No demuestra que todos los recursos puedan desplegarse correctamente en AWS real.
 
-## Archivos de resultados
+## 3. Archivos de resultados locales
 
-- `../local-results/evento-prueba.json`
-- `../local-results/respuesta-lambda.json`
-- `../local-results/respuesta-lambda-hit.json`
-- `../local-results/evento-invalido.json`
-- `../local-results/respuesta-invalida.json`
-- `../local-results/resultado-s3.json`
+Durante las pruebas se utilizaron archivos bajo `local-results/`, entre ellos:
 
-## Capturas de pantalla
+- `evento-prueba.json`
+- `respuesta-lambda.json`
+- `respuesta-lambda-hit.json`
+- `evento-invalido.json`
+- `respuesta-invalida.json`
+- `resultado-s3.json`
 
-Las capturas deben corresponder a las ejecuciones reales y mostrar los resultados descritos. Si una captura anterior no refleja las pruebas actuales, debe actualizarse antes de presentarla.
+Estos archivos se mantienen fuera del repositorio Git mediante `.gitignore`. Por tanto, sus nombres documentan los resultados locales, pero los archivos no forman parte de la entrega versionada.
 
-**Nota:** las pruebas se realizaron en LocalStack. No se ha ejecutado `terraform apply` y no se afirma un despliegue exitoso en AWS real.
+## 4. Capturas incluidas
+
+- `cache-miss-hit.png`: evidencia visual del comportamiento de la caché.
+- `invalid-json.png`: evidencia visual del rechazo de JSON inválido.
+
+Antes de presentar la entrega, verifica que ambas capturas correspondan a las ejecuciones descritas y que sus resultados sean legibles.
+
+## 5. Alcance y limitaciones
+
+Las pruebas de Lambda y S3 se realizaron con LocalStack. No se ha ejecutado `terraform apply` y no se afirma que la infraestructura haya sido desplegada en AWS real.
+
+La validación completa de la arquitectura, los permisos IAM, la conectividad de red y el comportamiento de los servicios en AWS real permanece pendiente.
